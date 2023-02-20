@@ -1,0 +1,12 @@
+[package]
+name = "loranto"
+version = "0.1.0"
+authors = ["Daniele Tricoli <eriol@mornie.org>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+btleplug = "0.10.4"
+clap = { version = "4.1.6", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
