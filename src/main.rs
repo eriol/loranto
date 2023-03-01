@@ -1,8 +1,9 @@
 mod ble;
 mod utils;
 
-use clap::{Parser, Subcommand};
 use std::error::Error;
+
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
