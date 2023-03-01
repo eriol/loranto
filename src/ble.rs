@@ -1,14 +1,17 @@
 use std::error::Error;
 use std::time::Duration;
-use tokio::time;
-use uuid::Uuid;
 
 use btleplug::api::{Central, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::{Adapter, Manager};
+use tokio::time;
+use uuid::Uuid;
+
+use crate::utils::progress_bar;
 
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
 
 pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Error>> {
+    let scan_time = Duration::from_secs(scan_time);
     let manager = Manager::new().await?;
     let adapter = get_adapter_by_name(&manager, adapter_name).await?;
     adapter
@@ -16,7 +19,8 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
         .await
         .expect("An error occurred while scanning for devices");
 
-    time::sleep(Duration::from_secs(scan_time)).await;
+    progress_bar(scan_time);
+    time::sleep(scan_time).await;
 
     let peripherals = adapter.peripherals().await?;
     if peripherals.is_empty() {
@@ -31,6 +35,7 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
             if !services.contains(&NORDIC_UART_SERVICE_UUID) {
                 continue;
             }
+            // TODO: put in a vec and sort by rssi.
             let address = properties
                 .as_ref()
                 .ok_or_else(|| "Error reading device address".to_string())?

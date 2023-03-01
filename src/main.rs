@@ -1,4 +1,5 @@
 mod ble;
+mod utils;
 
 use clap::{Parser, Subcommand};
 use std::error::Error;
