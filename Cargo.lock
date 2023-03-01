@@ -539,6 +539,7 @@ dependencies = [
  "btleplug",
  "clap",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

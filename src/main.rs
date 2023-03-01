@@ -1,4 +1,7 @@
+mod ble;
+
 use clap::{Parser, Subcommand};
+use std::error::Error;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -12,16 +15,24 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Scan to find BLE devices.
+    /// Scan to find Bluetooth LE devices.
     Scan {
         /// scan duration
-        #[arg(long, default_value_t = 5.0)]
-        scan_time: f32,
+        #[arg(long, default_value_t = 5)]
+        scan_time: u64,
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    println!("Value for adapter: {}", cli.adapter);
+    match &cli.command {
+        Some(Commands::Scan { scan_time }) => {
+            ble::scan(cli.adapter, *scan_time).await?;
+        }
+        None => {}
+    }
+
+    Ok(())
 }
