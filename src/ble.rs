@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::utils::progress_bar;
 
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
+const INVALID_RSSI: i16 = i16::MIN;
 
 pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Error>> {
     let scan_time = Duration::from_secs(scan_time);
@@ -44,7 +45,7 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
                 .as_ref()
                 .ok_or_else(|| "Error reading device rssi".to_string())?
                 .rssi
-                .unwrap_or(0);
+                .unwrap_or(INVALID_RSSI);
             let name = properties
                 .as_ref()
                 .ok_or_else(|| "Error reading device name".to_string())?
