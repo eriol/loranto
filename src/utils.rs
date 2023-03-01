@@ -12,7 +12,7 @@ pub fn progress_bar(scan_time: Duration) {
     let spinner_style = ProgressStyle::with_template("{spinner} [{wide_bar}]")
         .unwrap()
         .progress_chars("#>-");
-    pb.set_style(spinner_style.clone());
+    pb.set_style(spinner_style);
 
     let rt = runtime::Builder::new_multi_thread()
         .enable_time()
