@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::str;
 use std::time::Duration;
 
 use btleplug::api::{
@@ -13,6 +14,7 @@ use crate::utils::progress_bar;
 
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
 const NORDIC_UART_TX_CHAR_UUID: Uuid = Uuid::from_u128(0x6e400002_b5a3_f393_e0a9_e50e24dcca9e);
+const NORDIC_UART_RX_CHAR_UUID: Uuid = Uuid::from_u128(0x6e400003_b5a3_f393_e0a9_e50e24dcca9e);
 const INVALID_RSSI: i16 = i16::MIN;
 
 /// A result from Bluetooth scan.
@@ -124,18 +126,41 @@ pub async fn send(
     address: String,
     text: String,
 ) -> Result<(), Box<dyn Error>> {
+    let is_a_command = text.starts_with("!");
+
     let device = find_device_by_address(adapter_name, address).await?;
     device.connect().await?;
-    device.discover_services().await?;
-    let chars = device.characteristics();
-    let tx_char = chars
-        .iter()
-        .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
-        .ok_or("Unable to find characterics")?;
-    device
-        .write(&tx_char, text.as_bytes(), WriteType::WithResponse)
-        .await?;
-    device.disconnect().await?;
+    if device.is_connected().await? {
+        device.discover_services().await?;
+        let chars = device.characteristics();
+        let tx_char = chars
+            .iter()
+            .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
+            .ok_or("Unable to find TX characteric")?;
+
+        if is_a_command {
+            let rx_char = chars
+                .iter()
+                .find(|c| c.uuid == NORDIC_UART_RX_CHAR_UUID)
+                .ok_or("Unable to find RX characteric")?;
+            device.subscribe(&rx_char).await?;
+        }
+        let type_ = if is_a_command {
+            WriteType::WithResponse
+        } else {
+            WriteType::WithoutResponse
+        };
+        device.write(&tx_char, text.as_bytes(), type_).await?;
+        if is_a_command {
+            let mut notification_stream = device.notifications().await?.take(1);
+            while let Some(data) = notification_stream.next().await {
+                let text = str::from_utf8(&data.value).unwrap();
+                println!("{}", text.trim_end());
+            }
+        }
+
+        device.disconnect().await?;
+    }
 
     Ok(())
 }
