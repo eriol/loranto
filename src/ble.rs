@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::time::Duration;
 
-use btleplug::api::{Central, Manager as _, Peripheral, ScanFilter};
+use btleplug::api::{BDAddr, Central, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::{Adapter, Manager};
 use tokio::time;
 use uuid::Uuid;
@@ -11,7 +11,15 @@ use crate::utils::progress_bar;
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
 const INVALID_RSSI: i16 = i16::MIN;
 
-pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Error>> {
+/// A result from Bluetooth scan.
+#[derive(Debug, Default, Clone)]
+pub struct ScanResult {
+    pub address: BDAddr,
+    pub local_name: String,
+    pub rssi: i16,
+}
+
+pub async fn scan(adapter_name: String, scan_time: u64) -> Result<Vec<ScanResult>, Box<dyn Error>> {
     let scan_time = Duration::from_secs(scan_time);
     let manager = Manager::new().await?;
     let adapter = get_adapter_by_name(&manager, adapter_name).await?;
@@ -23,6 +31,7 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
     progress_bar(scan_time);
     time::sleep(scan_time).await;
 
+    let mut results: Vec<ScanResult> = Vec::new();
     let peripherals = adapter.peripherals().await?;
     if peripherals.is_empty() {
         eprintln!("No devices found");
@@ -36,7 +45,6 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
             if !services.contains(&NORDIC_UART_SERVICE_UUID) {
                 continue;
             }
-            // TODO: put in a vec and sort by rssi.
             let address = properties
                 .as_ref()
                 .ok_or_else(|| "Error reading device address".to_string())?
@@ -46,17 +54,22 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<(), Box<dyn Er
                 .ok_or_else(|| "Error reading device rssi".to_string())?
                 .rssi
                 .unwrap_or(INVALID_RSSI);
-            let name = properties
+            let local_name = properties
                 .as_ref()
                 .ok_or_else(|| "Error reading device name".to_string())?
                 .local_name
                 .clone()
                 .unwrap_or(address.to_string());
-            println!("{} (rssi:{}) {}", address, rssi, name);
+            results.push(ScanResult {
+                address,
+                local_name,
+                rssi,
+            });
         }
     }
 
-    Ok(())
+    results.sort_by(|a, b| b.rssi.cmp(&a.rssi));
+    Ok(results)
 }
 
 async fn get_adapter_by_name(manager: &Manager, name: String) -> Result<Adapter, Box<dyn Error>> {

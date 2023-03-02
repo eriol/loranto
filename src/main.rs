@@ -31,7 +31,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match &cli.command {
         Some(Commands::Scan { scan_time }) => {
-            ble::scan(cli.adapter, *scan_time).await?;
+            let devices = ble::scan(cli.adapter, *scan_time).await?;
+
+            for device in devices {
+                println!(
+                    "{} (rssi:{}) {}",
+                    device.address, device.rssi, device.local_name
+                );
+            }
         }
         None => {}
     }
