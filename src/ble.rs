@@ -1,14 +1,18 @@
 use std::error::Error;
 use std::time::Duration;
 
-use btleplug::api::{BDAddr, Central, Manager as _, Peripheral, ScanFilter};
-use btleplug::platform::{Adapter, Manager};
+use btleplug::api::{
+    BDAddr, Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType,
+};
+use btleplug::platform::{Adapter, Manager, Peripheral};
+use futures::stream::StreamExt;
 use tokio::time;
 use uuid::Uuid;
 
 use crate::utils::progress_bar;
 
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
+const NORDIC_UART_TX_CHAR_UUID: Uuid = Uuid::from_u128(0x6e400002_b5a3_f393_e0a9_e50e24dcca9e);
 const INVALID_RSSI: i16 = i16::MIN;
 
 /// A result from Bluetooth scan.
@@ -81,4 +85,57 @@ async fn get_adapter_by_name(manager: &Manager, name: String) -> Result<Adapter,
     }
 
     Err(format!("Can't find adapter: {}", name).into())
+}
+
+async fn find_device_by_address(
+    adapter_name: String,
+    address: String,
+) -> Result<Peripheral, Box<dyn Error>> {
+    let manager = Manager::new().await?;
+    let adapter = get_adapter_by_name(&manager, adapter_name).await?;
+
+    let mut events = adapter.events().await?;
+    adapter.start_scan(ScanFilter::default()).await?;
+
+    while let Some(event) = events.next().await {
+        match event {
+            CentralEvent::DeviceDiscovered(_id) => {
+                let peripherals = adapter.peripherals().await?;
+                for peripheral in peripherals.iter() {
+                    let properties = peripheral.properties().await?;
+                    let device_address = properties
+                        .as_ref()
+                        .ok_or_else(|| "Error reading device address".to_string())?
+                        .address;
+                    if device_address.to_string() == address {
+                        return Ok(peripheral.clone());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Err("no device found".into())
+}
+
+pub async fn send(
+    adapter_name: String,
+    address: String,
+    text: String,
+) -> Result<(), Box<dyn Error>> {
+    let device = find_device_by_address(adapter_name, address).await?;
+    device.connect().await?;
+    device.discover_services().await?;
+    let chars = device.characteristics();
+    let tx_char = chars
+        .iter()
+        .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
+        .ok_or("Unable to find characterics")?;
+    device
+        .write(&tx_char, text.as_bytes(), WriteType::WithResponse)
+        .await?;
+    device.disconnect().await?;
+
+    Ok(())
 }

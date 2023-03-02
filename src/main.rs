@@ -23,10 +23,20 @@ enum Commands {
         #[arg(long, default_value_t = 5)]
         scan_time: u64,
     },
+    /// Send messages to a device
+    Send {
+        /// device's address
+        #[arg(long)]
+        device: String,
+        #[arg(required = true)]
+        text: Vec<String>,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    pretty_env_logger::init();
+
     let cli = Cli::parse();
 
     match &cli.command {
@@ -39,6 +49,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     device.address, device.rssi, device.local_name
                 );
             }
+        }
+        Some(Commands::Send { device, text }) => {
+            ble::send(cli.adapter, device.clone(), text.join(" ")).await?;
         }
         None => {}
     }
