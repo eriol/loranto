@@ -154,7 +154,7 @@ pub async fn send(
         if is_a_command {
             let mut notification_stream = device.notifications().await?.take(1);
             while let Some(data) = notification_stream.next().await {
-                let text = str::from_utf8(&data.value).unwrap();
+                let text = str::from_utf8(&data.value)?;
                 println!("{}", text.trim_end());
             }
         }
