@@ -6,9 +6,9 @@ use btleplug::api::{
     BDAddr, Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
+use console::Term;
+use dialoguer::{theme::ColorfulTheme, Input};
 use futures::stream::StreamExt;
-use inquire::ui::{Color, RenderConfig, Styled};
-use inquire::Text;
 use tokio::time;
 use uuid::Uuid;
 
@@ -168,11 +168,12 @@ pub async fn send(
 }
 
 pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn Error>> {
+    let term = Term::buffered_stdout();
     let device = find_device_by_address(adapter_name, address).await?;
     device.connect().await?;
     if device.is_connected().await? {
         device.discover_services().await?;
-        tokio::spawn(get_input(device.clone()));
+        tokio::spawn(get_input(device.clone(), term.clone()));
         let chars = device.characteristics();
         let rx_char = chars
             .iter()
@@ -182,14 +183,15 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
         let mut notification_stream = device.notifications().await?;
         while let Some(data) = notification_stream.next().await {
             let text = str::from_utf8(&data.value)?;
-            println!("{}", text.trim_end());
+            term.write_line(text.trim_end())?;
+            term.flush()?;
         }
         device.disconnect().await?;
     }
     Ok(())
 }
 
-async fn get_input(device: Peripheral) {
+async fn get_input(device: Peripheral, t: Term) {
     loop {
         let chars = device.characteristics();
         let tx_char = chars
@@ -197,16 +199,14 @@ async fn get_input(device: Peripheral) {
             .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
             .ok_or("Unable to find TX characteric")
             .unwrap();
-        let prompt_prefix = Styled::new("Φ]").with_fg(Color::White);
-        let default: RenderConfig = RenderConfig::default();
-        let mine = default.with_prompt_prefix(prompt_prefix);
-        let text = Text::new("")
-            .with_render_config(mine)
-            .prompt()
-            .unwrap_or("".to_string());
+        let text: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("Φ]")
+            .interact_on(&t)
+            .unwrap();
         device
             .write(&tx_char, text.as_bytes(), WriteType::WithoutResponse)
             .await
             .unwrap();
+        t.flush().unwrap();
     }
 }
