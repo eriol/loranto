@@ -168,7 +168,7 @@ pub async fn send(
 }
 
 pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn Error>> {
-    let term = Term::buffered_stdout();
+    let term = Term::stdout();
     let device = find_device_by_address(adapter_name, address).await?;
     device.connect().await?;
     if device.is_connected().await? {
@@ -192,13 +192,13 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
 }
 
 async fn get_input(device: Peripheral, t: Term) {
+    let chars = device.characteristics();
+    let tx_char = chars
+        .iter()
+        .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
+        .ok_or("Unable to find TX characteric")
+        .unwrap();
     loop {
-        let chars = device.characteristics();
-        let tx_char = chars
-            .iter()
-            .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
-            .ok_or("Unable to find TX characteric")
-            .unwrap();
         let text: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Φ]")
             .interact_on(&t)
@@ -207,6 +207,6 @@ async fn get_input(device: Peripheral, t: Term) {
             .write(&tx_char, text.as_bytes(), WriteType::WithoutResponse)
             .await
             .unwrap();
-        t.flush().unwrap();
+        time::sleep(Duration::from_millis(100)).await;
     }
 }
