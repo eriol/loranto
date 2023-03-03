@@ -172,11 +172,8 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
     device.connect().await?;
     if device.is_connected().await? {
         device.discover_services().await?;
+        tokio::spawn(get_input(device.clone()));
         let chars = device.characteristics();
-        let tx_char = chars
-            .iter()
-            .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
-            .ok_or("Unable to find TX characteric")?;
         let rx_char = chars
             .iter()
             .find(|c| c.uuid == NORDIC_UART_RX_CHAR_UUID)
@@ -187,21 +184,29 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
             let text = str::from_utf8(&data.value)?;
             println!("{}", text.trim_end());
         }
-        let text = tokio::spawn(get_input());
-        device
-            .write(&tx_char, text.await?.as_bytes(), WriteType::WithoutResponse)
-            .await?;
         device.disconnect().await?;
     }
     Ok(())
 }
 
-async fn get_input() -> String {
-    let prompt_prefix = Styled::new("Φ]").with_fg(Color::White);
-    let default: RenderConfig = RenderConfig::default();
-    let mine = default.with_prompt_prefix(prompt_prefix);
-    Text::new("")
-        .with_render_config(mine)
-        .prompt()
-        .unwrap_or("".to_string())
+async fn get_input(device: Peripheral) {
+    loop {
+        let chars = device.characteristics();
+        let tx_char = chars
+            .iter()
+            .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
+            .ok_or("Unable to find TX characteric")
+            .unwrap();
+        let prompt_prefix = Styled::new("Φ]").with_fg(Color::White);
+        let default: RenderConfig = RenderConfig::default();
+        let mine = default.with_prompt_prefix(prompt_prefix);
+        let text = Text::new("")
+            .with_render_config(mine)
+            .prompt()
+            .unwrap_or("".to_string());
+        device
+            .write(&tx_char, text.as_bytes(), WriteType::WithoutResponse)
+            .await
+            .unwrap();
+    }
 }
