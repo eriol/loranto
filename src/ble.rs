@@ -7,6 +7,8 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::stream::StreamExt;
+use inquire::ui::{Color, RenderConfig, Styled};
+use inquire::Text;
 use tokio::time;
 use uuid::Uuid;
 
@@ -163,4 +165,43 @@ pub async fn send(
     }
 
     Ok(())
+}
+
+pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn Error>> {
+    let device = find_device_by_address(adapter_name, address).await?;
+    device.connect().await?;
+    if device.is_connected().await? {
+        device.discover_services().await?;
+        let chars = device.characteristics();
+        let tx_char = chars
+            .iter()
+            .find(|c| c.uuid == NORDIC_UART_TX_CHAR_UUID)
+            .ok_or("Unable to find TX characteric")?;
+        let rx_char = chars
+            .iter()
+            .find(|c| c.uuid == NORDIC_UART_RX_CHAR_UUID)
+            .ok_or("Unable to find RX characteric")?;
+        device.subscribe(&rx_char).await?;
+        let mut notification_stream = device.notifications().await?;
+        while let Some(data) = notification_stream.next().await {
+            let text = str::from_utf8(&data.value)?;
+            println!("{}", text.trim_end());
+        }
+        let text = tokio::spawn(get_input());
+        device
+            .write(&tx_char, text.await?.as_bytes(), WriteType::WithoutResponse)
+            .await?;
+        device.disconnect().await?;
+    }
+    Ok(())
+}
+
+async fn get_input() -> String {
+    let prompt_prefix = Styled::new("Φ]").with_fg(Color::White);
+    let default: RenderConfig = RenderConfig::default();
+    let mine = default.with_prompt_prefix(prompt_prefix);
+    Text::new("")
+        .with_render_config(mine)
+        .prompt()
+        .unwrap_or("".to_string())
 }

@@ -31,6 +31,12 @@ enum Commands {
         #[arg(required = true)]
         text: Vec<String>,
     },
+    /// Send messages to a device
+    Repl {
+        /// device's address
+        #[arg(long)]
+        device: String,
+    },
 }
 
 #[tokio::main]
@@ -52,6 +58,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         Some(Commands::Send { device, text }) => {
             ble::send(cli.adapter, device.clone(), text.join(" ")).await?;
+        }
+        Some(Commands::Repl { device }) => {
+            ble::repl(cli.adapter, device.clone()).await?;
         }
         None => {}
     }
