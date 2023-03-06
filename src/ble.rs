@@ -7,6 +7,7 @@ use btleplug::api::{
     BDAddr, Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
+use clap::{crate_name, crate_version};
 use console::Term;
 use futures::stream::StreamExt;
 use tokio::time;
@@ -169,9 +170,12 @@ pub async fn send(
 
 pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn Error>> {
     let term = Term::stdout();
+    term.write_line(format!("{} {}", crate_name!(), crate_version!()).as_str())?;
+    term.write_line(format!("Connecting to... {}", address).as_str())?;
     let device = find_device_by_address(adapter_name, address).await?;
     device.connect().await?;
     if device.is_connected().await? {
+        term.write_line("Connected. Type quit() to exit.")?;
         device.discover_services().await?;
 
         let line_channel = get_stdin_line_channel();
