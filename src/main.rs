@@ -31,7 +31,7 @@ enum Commands {
         #[arg(required = true)]
         text: Vec<String>,
     },
-    /// Send messages to a device
+    /// Start a REPL with the device
     Repl {
         /// device's address
         #[arg(long)]
