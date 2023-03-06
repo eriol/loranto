@@ -1,3 +1,6 @@
+use std::io;
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
@@ -32,4 +35,15 @@ pub fn progress_bar(scan_time: Duration) {
     thread::spawn(move || {
         rt.block_on(future);
     });
+}
+
+/// Create a new thread that sends stdin data over a channel.
+pub fn get_stdin_line_channel() -> Receiver<String> {
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::spawn(move || loop {
+        let mut line = String::new();
+        io::stdin().read_line(&mut line).unwrap();
+        tx.send(line).unwrap();
+    });
+    rx
 }

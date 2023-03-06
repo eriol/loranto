@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::str;
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use btleplug::api::{
@@ -7,12 +8,11 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use console::Term;
-use dialoguer::{theme::ColorfulTheme, Input};
 use futures::stream::StreamExt;
 use tokio::time;
 use uuid::Uuid;
 
-use crate::utils::progress_bar;
+use crate::utils::{get_stdin_line_channel, progress_bar};
 
 const NORDIC_UART_SERVICE_UUID: Uuid = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
 const NORDIC_UART_TX_CHAR_UUID: Uuid = Uuid::from_u128(0x6e400002_b5a3_f393_e0a9_e50e24dcca9e);
@@ -173,7 +173,11 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
     device.connect().await?;
     if device.is_connected().await? {
         device.discover_services().await?;
-        tokio::spawn(get_input(device.clone(), term.clone()));
+
+        let line_channel = get_stdin_line_channel();
+        tokio::spawn(write_ble(device.clone(), line_channel));
+
+        // Receive data from the Bluetooth LE device.
         let chars = device.characteristics();
         let rx_char = chars
             .iter()
@@ -186,12 +190,14 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
             term.write_line(text.trim_end())?;
             term.flush()?;
         }
+
         device.disconnect().await?;
     }
     Ok(())
 }
 
-async fn get_input(device: Peripheral, t: Term) {
+/// Send data to Bluetooth LE device.
+async fn write_ble(device: Peripheral, text_channel: Receiver<String>) {
     let chars = device.characteristics();
     let tx_char = chars
         .iter()
@@ -199,12 +205,13 @@ async fn get_input(device: Peripheral, t: Term) {
         .ok_or("Unable to find TX characteric")
         .unwrap();
     loop {
-        let text: String = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Φ]")
-            .interact_on(&t)
-            .unwrap();
+        let mut words = String::new();
+        if let Ok(text) = text_channel.try_recv() {
+            words = text;
+        }
+
         device
-            .write(&tx_char, text.as_bytes(), WriteType::WithoutResponse)
+            .write(&tx_char, words.as_bytes(), WriteType::WithoutResponse)
             .await
             .unwrap();
         time::sleep(Duration::from_millis(100)).await;
