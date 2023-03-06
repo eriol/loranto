@@ -190,8 +190,6 @@ pub async fn repl(adapter_name: String, address: String) -> Result<(), Box<dyn E
             term.write_line(text.trim_end())?;
             term.flush()?;
         }
-
-        device.disconnect().await?;
     }
     Ok(())
 }
@@ -210,6 +208,13 @@ async fn write_ble(device: Peripheral, text_channel: Receiver<String>) {
             words = text.trim().to_string();
         }
         if !words.is_empty() {
+            if words == "quit()" {
+                device
+                    .disconnect()
+                    .await
+                    .expect("Error disconnect from device.");
+                std::process::exit(0);
+            }
             device
                 .write(&tx_char, words.as_bytes(), WriteType::WithoutResponse)
                 .await
