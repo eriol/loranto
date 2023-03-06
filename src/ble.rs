@@ -33,6 +33,8 @@ pub async fn scan(adapter_name: String, scan_time: u64) -> Result<Vec<ScanResult
     let manager = Manager::new().await?;
     let adapter = get_adapter_by_name(&manager, adapter_name).await?;
     adapter
+        // We don't specify a scan filter because the paired devices are showed
+        // anyway.
         .start_scan(ScanFilter::default())
         .await
         .expect("An error occurred while scanning for devices");
