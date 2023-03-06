@@ -207,13 +207,14 @@ async fn write_ble(device: Peripheral, text_channel: Receiver<String>) {
     loop {
         let mut words = String::new();
         if let Ok(text) = text_channel.try_recv() {
-            words = text;
+            words = text.trim().to_string();
         }
-
-        device
-            .write(&tx_char, words.as_bytes(), WriteType::WithoutResponse)
-            .await
-            .unwrap();
+        if !words.is_empty() {
+            device
+                .write(&tx_char, words.as_bytes(), WriteType::WithoutResponse)
+                .await
+                .unwrap();
+        }
         time::sleep(Duration::from_millis(100)).await;
     }
 }
