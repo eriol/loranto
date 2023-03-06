@@ -31,6 +31,8 @@ Usage: loranto [OPTIONS] [COMMAND]
 
 Commands:
   scan  Scan to find Bluetooth LE devices
+  send  Send messages to a device
+  repl  Start a REPL with the device
   help  Print this message or the help of the given subcommand(s)
 
 Options:
